@@ -42,7 +42,6 @@ def query_db(query, args=(), one=False):
     print("query_db")
     print(cursor)
     rows = cursor.fetchall()
-    print(rows)
     db.commit()
     cursor.close()
     if rows:
@@ -59,6 +58,7 @@ def new_user():
         'values (?, ?, ?) returning id, name, password, api_key',
         (name, password, api_key),
         one=True)
+    print("new user: u ", u)
     return u
 
 def get_user_from_cookie(request):
@@ -127,7 +127,9 @@ def signup():
 @app.route('/profile')
 def profile():
     print("profile")
+    
     user = get_user_from_cookie(request)
+    print("------/profile------",request)
     if user:
         return render_with_error_handling('profile.html', user=user)
     
@@ -139,20 +141,27 @@ def login():
     print("login")
     user = get_user_from_cookie(request)
 
+    print("login request: ", request)
+    
     if user:
         return redirect('/')
-    
+    print("login request.method: ", request.method)
+    print("login request.json", request.form)
     if request.method == 'POST':
-        name = request.form['name']
-        password = request.form['name']
+        name = request.form['username']
+        password = request.form['password']
         u = query_db('select * from users where name = ? and password = ?', [name, password], one=True)
-        if user:
+        # print("login information here : user_id",str(u['id']))
+        # print("login information here : user_password",u['password'])
+        if u:
             resp = make_response(redirect("/"))
-            resp.set_cookie('user_id', u.id)
-            resp.set_cookie('user_password', u.password)
-            return resp
 
-    return render_with_error_handling('login.html', failed=True)   
+            resp.set_cookie('user_id', str(u['id']))
+            resp.set_cookie('user_password', u['password'])
+            return resp
+        else:
+            return render_with_error_handling('login.html', failed=True)   
+    return render_with_error_handling('login.html')   
 
 @app.route('/logout')
 def logout():
@@ -173,14 +182,77 @@ def room(room_id):
 # -------------------------------- API ROUTES ----------------------------------
 
 # POST to change the user's name
-@app.route('/api/user/name')
+@app.route('/api/user/name', methods=['POST'])
 def update_username():
-    return {}, 403
+    user = get_user_from_cookie(request)
+    if not user:
+        return {}, 403
+    print("data in update_username of app.py", request.json)
+    new_name = request.json.get('name')
+    api_key = request.headers.get('Authorization')
+    query_db('update users set name = ? where api_key = ?', [new_name, api_key])
+    return {}, 200
+
 
 # POST to change the user's password
+@app.route('/api/user/password', methods=['POST'])
+def update_password():
+    print("update_password +++++++++++++" ,update_password)
+    user = get_user_from_cookie(request)
+    if not user:
+        return {}, 403
+
+    new_password = request.json.get('password')
+    api_key = request.headers.get('Authorization')
+    query_db('update users set password = ? where api_key = ?', [new_password, api_key])
+    return {}, 200
+
+
 
 # POST to change the name of a room
+@app.route('/api/rooms/<int:room_id>', methods=['POST'])
+def update_room_name(room_id):
+    user = get_user_from_cookie(request)
+    if not user:
+        return {}, 403
+    print("user -------------- ", request.json)
+    new_name = request.json.get('name')
+    print("new_name",new_name)
+    # room_id = request.json.get('id')
+    print("room_id", room_id)
+    query_db('update rooms set name = ? where id = ?', [new_name, room_id])
+    print("update the room name here ----------------")
+    return {}, 200
+
 
 # GET to get all the messages in a room
+@app.route('/api/rooms/<int:room_id>/messages', methods=['GET'])
+def get_messages(room_id):
+    user = get_user_from_cookie(request)
+    if not user:
+        return {}, 403
+    
+    message = query_db('select * from messages left join users on messages.user_id = users.id where room_id = ?', [room_id])
+    if message:
+        print("GET MESSAGE SUCCESSFULLY!!!")
+        return jsonify([dict(message) for message in message]), 200
+    else:
+        return jsonify([]), 200
+
+
 
 # POST to post a new message to a room
+@app.route('/api/rooms/<int:room_id>/messages', methods=['POST'])
+def post_message(room_id):
+    user = get_user_from_cookie(request)
+    print("user in post_message of app.py: ", user)
+    if not user:
+        return {}, 403
+    
+    api_key = request.headers.get('Authorization')
+    user_id = query_db('select id from users where api_key = ?', [api_key],one = True)['id']
+    print("user_id in post_message of app.py: ", user_id)
+    body = request.json.get('body')
+    query_db('insert into messages (user_id, room_id, body) values (?, ?, ?)', [user_id, room_id, body])
+    return {}, 200
+

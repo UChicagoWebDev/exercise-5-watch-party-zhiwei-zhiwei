@@ -21,10 +21,10 @@
     <div class="profileDetails">
       <label  class="username" for="username">Your username is: </label>
       <input  class="username" name="username" class="mono" value="{{ user.name }}">
-      <button class="username">Update</button>
+      <button class="username" onclick="updateUsername()">Update</button>
       <label  class="password" for="password">Your password is: </label>
       <input  class="password" name="password" class="mono" value="{{ user.password }}">
-      <button class="password">Update</button>
+      <button class="password" onclick="updatePassword()">Update</button>
     </div>
     <p>
       Your user ID and API Key are available on every page as the javascript variables
